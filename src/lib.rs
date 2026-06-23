@@ -24,6 +24,54 @@ impl Outcome {
     }
 }
 
+impl Redactor {
+    /// Create a new Redactor from a list of rules and a placeholder string.
+    pub fn new(rules: Vec<Rule>, placeholder: impl Into<String>) -> Self {
+        Redactor {
+            rules,
+            placeholder: placeholder.into(),
+        }
+    }
+
+    /// Apply every rule in order, returning the scrubbed text and per-rule counts.
+    pub fn redact(&self, input: &str) -> Outcome {
+        let mut text = input.to_string();
+        let mut counts = Vec::new();
+
+        for rule in &self.rules {
+            let mut count = 0usize;
+
+            if let Some(min_entropy) = rule.entropy {
+                // Entropy threshold: only redact matches that meet the threshold.
+                // Collect match ranges first, then apply end-to-start to preserve offsets.
+                let mut matches: Vec<(usize, usize)> = Vec::new();
+                for m in rule.regex.find_iter(&text) {
+                    if shannon_entropy(m.as_str()) >= min_entropy {
+                        matches.push((m.start(), m.end()));
+                    }
+                }
+                for (start, end) in matches.into_iter().rev() {
+                    text.replace_range(start..end, &self.placeholder);
+                    count += 1;
+                }
+            } else {
+                // No entropy threshold: simple global replacement.
+                let replaced = rule.regex.replace_all(&text, |_: &regex::Captures| {
+                    count += 1;
+                    self.placeholder.as_str()
+                });
+                text = replaced.into_owned();
+            }
+
+            if count > 0 {
+                counts.push((rule.id.clone(), count));
+            }
+        }
+
+        Outcome { text, counts }
+    }
+}
+
 pub fn shannon_entropy(s: &str) -> f64 {
     if s.is_empty() {
         return 0.0;
@@ -47,6 +95,7 @@ pub fn shannon_entropy(s: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use regex::Regex;
 
     #[test]
     fn entropy_empty() {
@@ -63,5 +112,90 @@ mod tests {
     fn entropy_high() {
         let e = shannon_entropy("sk-proj-abc123ABC/+def456DEF=");
         assert!(e > 4.0);
+    }
+
+    #[test]
+    fn redact_replaces_matched_text() {
+        let rule = Rule {
+            id: "test-key".into(),
+            regex: Regex::new(r"sk-[A-Za-z0-9]{20,}").unwrap(),
+            entropy: None,
+        };
+        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let outcome = redactor.redact("my key is sk-abc123DEF456ghi789jkl012");
+        assert_eq!(outcome.text, "my key is [REDACTED]");
+        assert_eq!(outcome.total(), 1);
+    }
+
+    #[test]
+    fn redact_multiple_matches_same_rule() {
+        let rule = Rule {
+            id: "test-key".into(),
+            regex: Regex::new(r"AKIA[A-Z0-9]{16}").unwrap(),
+            entropy: None,
+        };
+        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let outcome = redactor.redact("keys: AKIAIOSFODNN7EXAMPLE and AKIAZZZZZZZZZZZZZZZZ");
+        assert_eq!(outcome.text, "keys: [REDACTED] and [REDACTED]");
+        assert_eq!(outcome.total(), 2);
+    }
+
+    #[test]
+    fn redact_multiple_rules_applied_in_order() {
+        let rule1 = Rule {
+            id: "aws".into(),
+            regex: Regex::new(r"AKIA[A-Z0-9]{16}").unwrap(),
+            entropy: None,
+        };
+        let rule2 = Rule {
+            id: "generic".into(),
+            regex: Regex::new(r"(?i)password=\S+").unwrap(),
+            entropy: None,
+        };
+        let redactor = Redactor::new(vec![rule1, rule2], "[REDACTED]");
+        let outcome = redactor.redact("aws=AKIAIOSFODNN7EXAMPLE password=hunter2");
+        assert_eq!(outcome.text, "aws=[REDACTED] [REDACTED]");
+        assert_eq!(outcome.total(), 2);
+    }
+
+    #[test]
+    fn redact_entropy_filter_low_entropy() {
+        let rule = Rule {
+            id: "high-entropy-only".into(),
+            regex: Regex::new(r"\b[A-Za-z0-9/+=-]{10,}\b").unwrap(),
+            entropy: Some(4.0),
+        };
+        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let outcome = redactor.redact("low entropy AAAAAAAA high entropy sk-proj-abc123DEF456");
+        // "AAAAAAAA" is 8 identical chars: entropy 0.0 < 4.0 → not redacted
+        // "sk-proj-abc123DEF456" has mixed chars: entropy >= 4.0 → redacted
+        assert_eq!(outcome.text, "low entropy AAAAAAAA high entropy [REDACTED]");
+        assert_eq!(outcome.total(), 1);
+    }
+
+    #[test]
+    fn redact_empty_input() {
+        let rule = Rule {
+            id: "test".into(),
+            regex: Regex::new(r"[A-Z]+").unwrap(),
+            entropy: None,
+        };
+        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let outcome = redactor.redact("");
+        assert_eq!(outcome.text, "");
+        assert_eq!(outcome.total(), 0);
+    }
+
+    #[test]
+    fn redact_no_match() {
+        let rule = Rule {
+            id: "test".into(),
+            regex: Regex::new(r"SECRET_\d+").unwrap(),
+            entropy: None,
+        };
+        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let outcome = redactor.redact("just regular text here");
+        assert_eq!(outcome.text, "just regular text here");
+        assert_eq!(outcome.total(), 0);
     }
 }
