@@ -11,7 +11,7 @@ pub struct GitleaksConfig {
 #[derive(Deserialize)]
 pub struct GitleaksRule {
     pub id: String,
-    pub regex: String,
+    pub regex: Option<String>,
     pub entropy: Option<f64>,
 }
 
@@ -26,7 +26,14 @@ pub fn load_from_str(toml_str: &str) -> Result<Vec<Rule>> {
     let config: GitleaksConfig = toml::from_str(toml_str)?;
     let mut rules = Vec::new();
     for gr in config.rules {
-        match Regex::new(&gr.regex) {
+        let regex_str = match gr.regex {
+            Some(r) => r,
+            None => {
+                eprintln!("scrub: warning: skipping rule '{}' (no regex field)", gr.id);
+                continue;
+            }
+        };
+        match Regex::new(&regex_str) {
             Ok(regex) => {
                 rules.push(Rule {
                     id: gr.id,
@@ -90,12 +97,17 @@ regex = '''[invalid'''
     }
 
     #[test]
-    fn load_from_str_rejects_rule_without_regex() {
+    fn load_from_str_skips_rule_without_regex() {
         let toml = r#"
 [[rules]]
 id = "no-regex-rule"
+
+[[rules]]
+id = "good-rule"
+regex = '''[A-Z]+'''
 "#;
-        let result = load_from_str(toml);
-        assert!(result.is_err(), "missing regex field should cause an error");
+        let rules = load_from_str(toml).unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].id, "good-rule");
     }
 }
