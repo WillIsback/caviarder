@@ -1,0 +1,4 @@
+Empty file below this line:
+
+Just some regular text with no secrets.
+plaintext@example.com is an email but not a high-value secret.

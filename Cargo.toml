@@ -1,0 +1,19 @@
+[package]
+name = "scrub"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Redact secrets and PII from text using gitleaks detection rules."
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
