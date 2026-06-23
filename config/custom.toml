@@ -1,0 +1,5 @@
+[[rules]]
+id = "custom-sk-api-key"
+description = "Detected a custom sk- prefixed API key."
+regex = '''sk-[A-Za-z0-9]{40,50}\b'''
+entropy = 3.5

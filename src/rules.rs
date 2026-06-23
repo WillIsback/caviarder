@@ -1,6 +1,6 @@
 use crate::Rule;
 use anyhow::Result;
-use regex::Regex;
+use regex::RegexBuilder;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -33,7 +33,10 @@ pub fn load_from_str(toml_str: &str) -> Result<Vec<Rule>> {
                 continue;
             }
         };
-        match Regex::new(&regex_str) {
+        match RegexBuilder::new(&regex_str)
+            .size_limit(50 * (1 << 20)) // 50 MB limit for large gitleaks regexes
+            .build()
+        {
             Ok(regex) => {
                 rules.push(Rule {
                     id: gr.id,
