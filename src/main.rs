@@ -5,24 +5,24 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use scrub_cli::rules;
-use scrub_cli::{Redactor, Rule};
+use caviarder::rules;
+use caviarder::{Redactor, Rule};
 
 /// Redact secrets and PII from text using gitleaks detection rules.
 #[derive(Parser, Debug)]
 #[command(
-    name = "scrub",
+    name = "cav",
     version,
     about,
     after_help = "EXAMPLES:\n  \
-        cat config.yml | scrub              Pipe from cat into scrub\n  \
-        scrub config.yml                     Redact a file (same as cat | scrub)\n  \
-        echo \"key=abc123\" | scrub           Redact piped text\n  \
-        scrub --check config.yml             Check for secrets (exit 1 if found)\n  \
-        scrub config.yml -o clean.yml        Save redacted output to a file\n  \
-        scrub --stats config.yml             Show per-rule redaction counts\n  \
-        scrub --list-rules                   List all loaded detection rules\n  \
-        scrub --rules my-rules.toml file     Use additional custom rules"
+        cat config.yml | cav               Pipe from cat into cav\n  \
+        cav config.yml                     Redact a file (same as cat | cav)\n  \
+        echo \"key=abc123\" | cav            Redact piped text\n  \
+        cav --check config.yml             Check for secrets (exit 1 if found)\n  \
+        cav config.yml -o clean.yml        Save redacted output to a file\n  \
+        cav --stats config.yml             Show per-rule redaction counts\n  \
+        cav --list-rules                   List all loaded detection rules\n  \
+        cav --rules my-rules.toml file     Use additional custom rules"
 )]
 struct Cli {
     /// Input file (default: stdin)
@@ -102,10 +102,10 @@ fn main() -> Result<()> {
         }
         let total = outcome.total();
         if total > 0 {
-            eprintln!("scrub: found {} potential secret(s)", total);
+            eprintln!("cav: found {} potential secret(s)", total);
             std::process::exit(1);
         }
-        eprintln!("scrub: no secrets found");
+        eprintln!("cav: no secrets found");
         return Ok(());
     }
 
@@ -125,7 +125,7 @@ fn main() -> Result<()> {
         for (rule_id, count) in &outcome.counts {
             eprintln!("{}: {}", rule_id, count);
         }
-        eprintln!("scrub: {} redaction(s)", outcome.total());
+        eprintln!("cav: {} redaction(s)", outcome.total());
     }
 
     Ok(())

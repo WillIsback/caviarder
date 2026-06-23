@@ -1,35 +1,35 @@
 use std::process::Command;
 
-fn scrub_binary() -> &'static str {
+fn cav_binary() -> &'static str {
     if cfg!(debug_assertions) {
-        "target/debug/scrub"
+        "target/debug/cav"
     } else {
-        "target/release/scrub"
+        "target/release/cav"
     }
 }
 
 #[test]
 fn test_stdin_no_secrets() {
-    let output = Command::new(scrub_binary())
+    let output = Command::new(cav_binary())
         .arg("--check")
         .arg("--no-default")
         .arg("--rules")
         .arg("config/gitleaks.toml")
         .arg("tests/fixtures/edge.txt")
         .output()
-        .expect("failed to execute scrub");
+        .expect("failed to execute cav");
     assert_eq!(output.status.code(), Some(0));
 }
 
 #[test]
 fn test_file_redact_basic() {
-    let output = Command::new(scrub_binary())
+    let output = Command::new(cav_binary())
         .arg("--no-default")
         .arg("--rules")
         .arg("config/gitleaks.toml")
         .arg("tests/fixtures/basic.txt")
         .output()
-        .expect("failed to execute scrub");
+        .expect("failed to execute cav");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // The fixture contains several known secret patterns.
@@ -42,14 +42,14 @@ fn test_file_redact_basic() {
 
 #[test]
 fn test_stdin_pipe() {
-    let mut child = Command::new(scrub_binary())
+    let mut child = Command::new(cav_binary())
         .arg("--no-default")
         .arg("--rules")
         .arg("config/gitleaks.toml")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
-        .expect("failed to spawn scrub");
+        .expect("failed to spawn cav");
     use std::io::Write;
     child
         .stdin
@@ -66,14 +66,14 @@ fn test_stdin_pipe() {
 
 #[test]
 fn test_check_mode_finds_secrets() {
-    let output = Command::new(scrub_binary())
+    let output = Command::new(cav_binary())
         .arg("--check")
         .arg("--no-default")
         .arg("--rules")
         .arg("config/gitleaks.toml")
         .arg("tests/fixtures/basic.txt")
         .output()
-        .expect("failed to execute scrub");
+        .expect("failed to execute cav");
     // --check with secrets should exit 1
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);

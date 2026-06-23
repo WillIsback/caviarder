@@ -35,7 +35,7 @@ pub fn load_from_str(toml_str: &str) -> Result<Vec<Rule>> {
         let regex_str = match gr.regex {
             Some(r) => r,
             None => {
-                eprintln!("scrub: warning: skipping rule '{}' (no regex field)", gr.id);
+                eprintln!("cav: warning: skipping rule '{}' (no regex field)", gr.id);
                 continue;
             }
         };
@@ -51,7 +51,7 @@ pub fn load_from_str(toml_str: &str) -> Result<Vec<Rule>> {
                 });
             }
             Err(e) => {
-                eprintln!("scrub: warning: skipping rule '{}': {}", gr.id, e);
+                eprintln!("cav: warning: skipping rule '{}': {}", gr.id, e);
             }
         }
     }

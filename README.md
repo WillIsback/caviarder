@@ -1,8 +1,8 @@
-# scrub
+# caviarder
 
 **Redact secrets from text using gitleaks detection rules.**
 
-`scrub` is a fast Rust CLI that reads text from a file or stdin and replaces
+`caviarder` (French for "to redact") is a fast Rust CLI that reads text from a file or stdin and replaces
 detected secrets (API keys, tokens, passwords) with a placeholder. It uses
 [gitleaks](https://github.com/gitleaks/gitleaks)' community-maintained rule
 set — 220+ patterns — embedded at compile time.
@@ -11,10 +11,10 @@ set — 220+ patterns — embedded at compile time.
 
 Sharing config files, logs, or debug output often leaks secrets without you
 noticing. `gitleaks` catches them during CI but isn't designed for ad-hoc
-scrubbing. `scrub` fills that gap:
+scrubbing. `caviarder` fills that gap:
 
-- **Pipe anything**: `cat file | scrub` — works like `cat` but safe.
-- **Check before commit**: `scrub --check file` — exit 1 if secrets found.
+- **Pipe anything**: `cat file | cav` — works like `cat` but safe.
+- **Check before commit**: `cav --check file` — exit 1 if secrets found.
 - **Zero config**: 220+ rules baked in. No setup, no server, no dependencies.
 
 ## Installation
@@ -25,7 +25,7 @@ scrubbing. `scrub` fills that gap:
 git clone https://github.com/WillIsback/scrub.git
 cd scrub
 cargo build --release
-cp target/release/scrub ~/.local/bin/
+cp target/release/cav ~/.local/bin/
 ```
 
 Requires Rust 1.70+.
@@ -33,54 +33,52 @@ Requires Rust 1.70+.
 ### From crates.io
 
 ```bash
-    cargo install scrub-cli
+cargo install caviarder
 ```
-
-> *Not yet published — coming soon.*
 
 ## Usage
 
 ### Redact a file
 
 ```bash
-scrub config.yml
+cav config.yml
 # → prints redacted version to stdout
 ```
 
 ### Pipe from any command
 
 ```bash
-cat config.yml | scrub
-echo "$API_KEY" | scrub
-env | scrub
+cat config.yml | cav
+echo "$API_KEY" | cav
+env | cav
 ```
 
 ### Save redacted output
 
 ```bash
-scrub config.yml -o safe.yml
+cav config.yml -o safe.yml
 # or
-cat config.yml | scrub > safe.yml
+cat config.yml | cav > safe.yml
 ```
 
 ### Check for secrets (exit 1 if found)
 
 ```bash
-scrub --check deploy.sh
+cav --check deploy.sh
 echo $?   # 1 if secrets were found
 ```
 
 ### Scan with detailed stats
 
 ```bash
-scrub --stats entrypoint.sh
+cav --stats entrypoint.sh
 # → stderr: per-rule redaction counts
 ```
 
 ### List all detection rules
 
 ```bash
-scrub --list-rules
+cav --list-rules
 ```
 
 ### Add custom rules
@@ -97,7 +95,7 @@ entropy = 3.0
 Then use it alongside the built-in rules:
 
 ```bash
-scrub --rules my-rules.toml config.yml
+cav --rules my-rules.toml config.yml
 ```
 
 ## How it works
@@ -124,8 +122,8 @@ and the rest of the match is preserved as context:
 
 ## How it differs from gitleaks
 
-| | `gitleaks` | `scrub` |
-|---|-----------|---------|
+| | `gitleaks` | `caviarder` |
+|---|-----------|------------|
 | Purpose | CI/CD scanning | Ad-hoc redaction |
 | Output | JSON/CSV report | Redacted text on stdout |
 | Installation | Go binary + config | Single Rust binary, no deps |
