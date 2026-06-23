@@ -1,4 +1,4 @@
 [[rules]]
 id = "vllm-api-key"
 description = "Detected a vLLM API key defined via the --api-key argument."
-regex = '''--api-key\s+"[^"]+"'''
+regex = '''--api-key\s+"([^"]+)"'''

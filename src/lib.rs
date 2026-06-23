@@ -43,22 +43,56 @@ impl Redactor {
 
             if let Some(min_entropy) = rule.entropy {
                 // Entropy threshold: only redact matches that meet the threshold.
-                // Collect match ranges first, then apply end-to-start to preserve offsets.
-                let mut matches: Vec<(usize, usize)> = Vec::new();
-                for m in rule.regex.find_iter(&text) {
-                    if shannon_entropy(m.as_str()) >= min_entropy {
-                        matches.push((m.start(), m.end()));
+                // If the regex has a capture group, only group 1 is checked for
+                // entropy and redacted; the rest of the match is preserved.
+                struct MatchEntry {
+                    start: usize,
+                    end: usize,
+                    capture_start: Option<usize>,
+                    capture_end: Option<usize>,
+                }
+                let mut matches: Vec<MatchEntry> = Vec::new();
+                for caps in rule.regex.captures_iter(&text) {
+                    let full = caps.get(0).unwrap();
+                    let (check_str, capture_start, capture_end) = if caps.len() >= 2 {
+                        let v = caps.get(1).unwrap();
+                        (v.as_str(), Some(v.start()), Some(v.end()))
+                    } else {
+                        (full.as_str(), None, None)
+                    };
+                    if shannon_entropy(check_str) >= min_entropy {
+                        matches.push(MatchEntry {
+                            start: full.start(),
+                            end: full.end(),
+                            capture_start,
+                            capture_end,
+                        });
                     }
                 }
-                for (start, end) in matches.into_iter().rev() {
-                    text.replace_range(start..end, &self.placeholder);
+                for entry in matches.into_iter().rev() {
+                    let (rs, re) = match (entry.capture_start, entry.capture_end) {
+                        (Some(s), Some(e)) => (s, e),
+                        _ => (entry.start, entry.end),
+                    };
+                    text.replace_range(rs..re, &self.placeholder);
                     count += 1;
                 }
             } else {
-                // No entropy threshold: simple global replacement.
-                let replaced = rule.regex.replace_all(&text, |_: &regex::Captures| {
+                // No entropy threshold: global replacement.
+                // If the regex has a capture group, only group 1 is redacted
+                // and the rest of the match is preserved as context.
+                let replaced = rule.regex.replace_all(&text, |caps: &regex::Captures| {
                     count += 1;
-                    self.placeholder.as_str()
+                    if caps.len() >= 2 {
+                        // Preserve context around the captured value
+                        let full_match = caps.get(0).unwrap();
+                        let value = caps.get(1).unwrap();
+                        let before = &full_match.as_str()[..value.start() - full_match.start()];
+                        let after = &full_match.as_str()[value.end() - full_match.start()..];
+                        format!("{}{}{}", before, self.placeholder, after)
+                    } else {
+                        self.placeholder.as_str().to_owned()
+                    }
                 });
                 text = replaced.into_owned();
             }
