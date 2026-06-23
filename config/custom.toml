@@ -1,4 +1,5 @@
 [[rules]]
-id = "vllm-api-key"
-description = "Detected a vLLM API key defined via the --api-key argument."
-regex = '''--api-key\s+"([^"]+)"'''
+id = "cli-flag-secret"
+description = "Detected a secret passed via a common CLI flag (--api-key, --token, --password, etc.). Covers space-separated and --flag=value patterns that gitleaks' KEYWORD=separator rules miss."
+regex = '''--(?:api[-_]?key|token|secret|password|bearer|auth[-_]?token|access[-_]?token|private[-_]?key)\s+"?([A-Za-z0-9_\/\-:=.+@]{16,})"?'''
+entropy = 3.5
