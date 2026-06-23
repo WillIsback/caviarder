@@ -10,7 +10,20 @@ use scrub::{Redactor, Rule};
 
 /// Redact secrets and PII from text using gitleaks detection rules.
 #[derive(Parser, Debug)]
-#[command(name = "scrub", version, about)]
+#[command(
+    name = "scrub",
+    version,
+    about,
+    after_help = "EXAMPLES:\n  \
+        cat config.yml | scrub              Pipe from cat into scrub\n  \
+        scrub config.yml                     Redact a file (same as cat | scrub)\n  \
+        echo \"key=abc123\" | scrub           Redact piped text\n  \
+        scrub --check config.yml             Check for secrets (exit 1 if found)\n  \
+        scrub config.yml -o clean.yml        Save redacted output to a file\n  \
+        scrub --stats config.yml             Show per-rule redaction counts\n  \
+        scrub --list-rules                   List all loaded detection rules\n  \
+        scrub --rules my-rules.toml file     Use additional custom rules"
+)]
 struct Cli {
     /// Input file (default: stdin)
     input: Option<PathBuf>,
