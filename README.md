@@ -22,7 +22,7 @@ scrubbing. `caviarder` fills that gap:
 ### From source
 
 ```bash
-git clone https://github.com/WillIsback/scrub.git
+git clone https://github.com/WillIsback/caviarder.git
 cd scrub
 cargo build --release
 cp target/release/cav ~/.local/bin/
