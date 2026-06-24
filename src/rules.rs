@@ -35,7 +35,8 @@ pub fn load_from_str(toml_str: &str) -> Result<Vec<Rule>> {
         let regex_str = match gr.regex {
             Some(r) => r,
             None => {
-                eprintln!("cav: warning: skipping rule '{}' (no regex field)", gr.id);
+                // Rules without a "regex" field use gitleaks-specific features
+                // (path, etc.) that don't apply to text redaction — skip silently.
                 continue;
             }
         };
