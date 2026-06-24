@@ -10,6 +10,7 @@ struct Entry {
     file_path: String,
     line_start: usize,
     ground_truth: String,
+    category: String,
 }
 
 fn load_metadata() -> Vec<Entry> {
@@ -43,6 +44,7 @@ fn load_metadata() -> Vec<Entry> {
                 file_path: record.get(4).unwrap_or("").to_string(),
                 line_start: record.get(5).unwrap_or("1").parse().unwrap_or(1),
                 ground_truth: record.get(7).unwrap_or("F").to_string(),
+                category: record.get(12).unwrap_or("").to_string(),
             });
         }
     }
@@ -82,6 +84,10 @@ fn main() {
     let mut tn = 0usize;
     let mut skipped = 0usize;
 
+    // Collect up to 5 examples of each error type for display
+    let mut fn_samples: Vec<(String, String)> = Vec::new();
+    let mut fp_samples: Vec<(String, String)> = Vec::new();
+
     for entry in &entries {
         let file_path = Path::new(BENCH_DATA).join(&entry.file_path);
 
@@ -108,8 +114,18 @@ fn main() {
 
         match (was_redacted, is_true) {
             (true, true) => tp += 1,
-            (true, false) => fp += 1,
-            (false, true) => fn_ += 1,
+            (true, false) => {
+                if fp_samples.len() < 5 {
+                    fp_samples.push((entry.category.clone(), line.to_string()));
+                }
+                fp += 1;
+            }
+            (false, true) => {
+                if fn_samples.len() < 5 {
+                    fn_samples.push((entry.category.clone(), line.to_string()));
+                }
+                fn_ += 1;
+            }
             (false, false) => tn += 1,
         }
     }
@@ -166,4 +182,52 @@ fn main() {
     println!("   Precision:  52.6%");
     println!("   Recall:     24.4%");
     println!("   F1:         0.334");
+    println!();
+
+    // --- Interpretation ---
+    println!("=== Interpreting Results ===");
+    println!(" Ground Truth labels from CredData:");
+    println!("   T (True)   = this line contains a real secret");
+    println!("   F (False)  = this line is NOT a secret (but might look like one)");
+    println!();
+    println!(" Confusion Matrix cells:");
+    println!("   TP = Predicted secret + Actual secret         -> ✓ correct catch");
+    println!("   FP = Predicted secret + NOT a secret          -> ✗ false alarm");
+    println!("   FN = Predicted benign + Actual secret         -> ✗ missed secret");
+    println!("   TN = Predicted benign + NOT a secret          -> ✓ correct ignore");
+    println!();
+    println!(" Metrics:");
+    println!("   Precision = TP / (TP + FP)   — when we flag something, how often");
+    println!("                                 are we right?");
+    println!("   Recall    = TP / (TP + FN)   — what fraction of real secrets do we");
+    println!("                                 catch?");
+    println!("   F1        = harmonic mean of precision & recall (balanced score)");
+    println!("   Accuracy  = (TP + TN) / Total");
+    println!();
+
+    // Print sampled missed secrets (FN)
+    println!("--- False Negatives (missed secrets — NOT redacted but should have been) ---");
+    for (cat, line) in &fn_samples {
+        let truncated: String = line.chars().take(100).collect();
+        println!("  [{cat:20}] {truncated}");
+    }
+    println!();
+
+    // Print sampled false alarms (FP)
+    println!("--- False Positives (false alarms — redacted but were NOT secrets) ---");
+    for (cat, line) in &fp_samples {
+        let truncated: String = line.chars().take(100).collect();
+        println!("  [{cat:20}] {truncated}");
+    }
+    println!();
+    println!("(Showing up to 5 examples of each type; {fn_}/{total} FN, {fp}/{total} FP total)");
+    println!();
+    println!(" Common FN patterns (missed):");
+    println!("   - UUID/Nonce values that look like random strings but are not in gitleaks rules");
+    println!("   - Passwords with low entropy (all lowercase, dictionary words)");
+    println!("   - Credentials in custom env vars not covered by gitleaks rules");
+    println!(" Common FP patterns (false alarms):");
+    println!("   - Variable names containing 'key', 'secret', 'pass', 'token' as identifiers");
+    println!("   - Comments or code referencing credential concepts without actual secrets");
+    println!("   - Low-entropy placeholder values that match any pattern");
 }
