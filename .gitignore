@@ -3,3 +3,6 @@
 # Benchmark dataset
 /bench-data/
 /_creddata/
+
+# Benchmark results (structured JSON sidecar outputs)
+/bench-results/

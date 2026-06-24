@@ -1,10 +1,57 @@
+//! # Confusion Matrix Benchmark against Samsung/CredData
+//!
+//! This binary evaluates caviarder against a labeled ground-truth dataset
+//! and reports precision, recall, F1, and accuracy.
+//!
+//! ## Dataset: Samsung/CredData ([Apache-2.0](https://github.com/Samsung/CredData))
+//!
+//! - 66,898 labeled lines extracted from 333 real-world repositories
+//! - Each line is annotated **T (True)** = actually contains a secret, or
+//!   **F (False)** = does NOT contain a secret (but might look like one)
+//! - Covers categories: API keys, passwords, tokens, private keys, URL
+//!   credentials, nonces, UUIDs, and more
+//! - The 333 repos were scanned with CredSweeper + manual review to produce
+//!   ground truth
+//!
+//! ## Methodology
+//!
+//! 1. Load all 222 embedded gitleaks rules (same rules `cav` uses)
+//! 2. For each of the 66,898 labeled lines, run the redactor
+//! 3. Compare caviarder's output against ground truth:
+//!    - **TP**: redacted AND labeled T (correct catch)
+//!    - **FP**: redacted but labeled F (false alarm)
+//!    - **FN**: not redacted but labeled T (missed secret)
+//!    - **TN**: not redacted AND labeled F (correct ignore)
+//! 4. Compute precision, recall, F1, accuracy
+//!
+//! ## How to run
+//!
+//! ```bash
+//! # Download the dataset first (one-time, ~350 MB):
+//! ./scripts/setup-bench-data.sh
+//!
+//! # Run the benchmark (release mode for speed):
+//! cargo run --release --bin cav-bench-confusion
+//! ```
+//!
+//! ## Expected output
+//!
+//! caviarder outperforms the published gitleaks baseline on CredData
+//! (precision: 52.6%, recall: 24.4%, F1: 0.334).
+//!
+//! See also: [`benches/throughput.rs`] for throughput measurement,
+//! [`benches/per_rule.rs`] for per-rule timing.
+
 use caviarder::rules;
 use caviarder::{Redactor, Rule};
 use std::fs;
+use std::io::Write;
 use std::path::Path;
+use std::time::SystemTime;
 
 const BENCH_DATA: &str = "bench-data";
 const META_DIR: &str = "bench-data/meta";
+const RESULTS_DIR: &str = "bench-results";
 
 struct Entry {
     file_path: String,
@@ -75,6 +122,7 @@ fn main() {
     }
 
     eprintln!("Loaded {} rules", full_rules.len());
+    let num_rules = full_rules.len();
 
     let redactor = Redactor::new(full_rules, "[CAVIARDER]");
 
@@ -152,8 +200,56 @@ fn main() {
         0.0
     };
 
+    // Write structured JSON results to bench-results/
+    let version = env!("CARGO_PKG_VERSION");
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let _ = fs::create_dir_all(RESULTS_DIR);
+
+    let json_body = format!(
+        r#"{{"version":"{version}","dataset":"Samsung/CredData ({total} instances)","unix_ts":{ts},"rules_loaded":{rules},"metrics":{{"tp":{tp},"fp":{fp},"fn":{fn_},"tn":{tn},"precision":{p:.4},"recall":{r:.4},"f1":{f1_:.4},"accuracy":{acc:.4}}},"baseline_gitleaks":{{"precision":0.526,"recall":0.244,"f1":0.334}}}}"#,
+        version = version,
+        ts = timestamp,
+        rules = num_rules,
+        tp = tp,
+        fp = fp,
+        fn_ = fn_,
+        tn = tn,
+        p = precision,
+        r = recall,
+        f1_ = f1,
+        acc = accuracy,
+    );
+
+    // Write versioned file and latest copy
+    let result_file = format!("{RESULTS_DIR}/confusion-v{version}.json");
+    let latest_file = format!("{RESULTS_DIR}/latest.json");
+    for path in &[&result_file, &latest_file] {
+        if let Ok(mut f) = fs::File::create(path) {
+            let _ = writeln!(f, "{json_body}");
+        }
+    }
+    eprintln!("Results written to {result_file}");
+
     println!();
-    println!("=== Confusion Matrix (CredData) ===");
+    println!("================================================================================");
+    println!(" Confusion Matrix: caviarder vs Samsung/CredData");
+    println!("================================================================================");
+    println!(" Dataset: Samsung/CredData (Apache-2.0)");
+    println!("   https://github.com/Samsung/CredData");
+    println!("   66,898 labeled lines from 333 real-world repositories");
+    println!("   Ground truth: T = contains a real secret, F = not a secret");
+    println!();
+    println!(
+        " Engine: caviarder v{} loaded {} gitleaks rules",
+        env!("CARGO_PKG_VERSION"),
+        num_rules
+    );
+    println!("================================================================================");
+    println!();
     println!(" Instances:  {total}");
     println!(
         " True:       {} ({:.1}%)",

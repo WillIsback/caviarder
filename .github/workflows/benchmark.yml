@@ -1,0 +1,43 @@
+name: Benchmark (nightly)
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+    inputs:
+      reason:
+        description: 'Why run the benchmark?'
+        required: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
+
+      - name: Set up Python with venv
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5
+        with:
+          python-version: '3.12'
+
+      - name: Download Samsung/CredData dataset
+        run: ./scripts/setup-bench-data.sh
+        timeout-minutes: 20
+
+      - name: Build confusion binary (release)
+        run: cargo build --release --bin cav-bench-confusion
+
+      - name: Run confusion matrix benchmark
+        run: cargo run --release --bin cav-bench-confusion
+        timeout-minutes: 15
+
+      - name: Archive structured results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-results-${{ github.sha }}
+          path: bench-results/
+          retention-days: 90
