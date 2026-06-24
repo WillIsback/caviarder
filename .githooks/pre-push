@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Git pre-push hook: verify tag version matches Cargo.toml and Cargo.lock
+set -euo pipefail
+
+while read local_ref local_sha remote_ref remote_sha; do
+  # Only check tag pushes
+  case "$remote_ref" in
+    refs/tags/v*)
+      TAG_VER="${remote_ref#refs/tags/v}"
+
+      # Read versions from Cargo.toml and Cargo.lock at the tag commit
+      TOML_VER="$(git show "$local_sha":Cargo.toml 2>/dev/null | sed -n 's/^version = "\(.*\)"/\1/p')"
+      LOCK_VER="$(git show "$local_sha":Cargo.lock 2>/dev/null | sed -n '/^name = "caviarder"/{n;s/^version = "\(.*\)"/\1/p}')"
+
+      if [ "$TAG_VER" != "$TOML_VER" ]; then
+        echo "ERROR: Tag v$TAG_VER does not match Cargo.toml version ($TOML_VER)"
+        exit 1
+      fi
+
+      if [ "$TAG_VER" != "$LOCK_VER" ]; then
+        echo "ERROR: Tag v$TAG_VER does not match Cargo.lock version ($LOCK_VER)"
+        exit 1
+      fi
+
+      echo "✓ Tag v$TAG_VER matches Cargo.toml and Cargo.lock"
+      ;;
+  esac
+done
+
+exit 0
