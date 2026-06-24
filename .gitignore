@@ -1,1 +1,5 @@
 /target/
+
+# Benchmark dataset
+/bench-data/
+/_creddata/
