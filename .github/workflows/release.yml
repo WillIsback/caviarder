@@ -51,4 +51,4 @@ jobs:
             echo "CRATES_IO_TOKEN secret not set — skipping crates.io publish"
             exit 0
           fi
-          cargo publish
+          cargo publish --allow-dirty
