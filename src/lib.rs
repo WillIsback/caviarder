@@ -1,6 +1,6 @@
-pub mod rules;
 pub mod ml;
 pub mod ml_model;
+pub mod rules;
 
 use regex::Regex;
 
@@ -130,10 +130,8 @@ impl Redactor {
                     if caps.len() >= 2 {
                         let full_match = caps.get(0).unwrap();
                         let value = caps.get(1).unwrap();
-                        let before =
-                            &full_match.as_str()[..value.start() - full_match.start()];
-                        let after =
-                            &full_match.as_str()[value.end() - full_match.start()..];
+                        let before = &full_match.as_str()[..value.start() - full_match.start()];
+                        let after = &full_match.as_str()[value.end() - full_match.start()..];
                         format!("{}{}{}", before, self.placeholder, after)
                     } else {
                         self.placeholder.clone()
@@ -292,8 +290,7 @@ mod tests {
             regex: Regex::new(r"\b[A-Za-z0-9]{10,}\b").unwrap(),
             entropy: None,
         };
-        let redactor = Redactor::new(vec![rule], "[CAVIARDER]")
-            .with_filename("file.env");
+        let redactor = Redactor::new(vec![rule], "[CAVIARDER]").with_filename("file.env");
         let outcome = redactor.redact("x = abc123def456");
         // Default threshold 0.0 = disabled, so this should be redacted
         assert_eq!(outcome.text, "x = [CAVIARDER]");
@@ -309,7 +306,7 @@ mod tests {
             entropy: None,
         };
         let redactor = Redactor::new(vec![rule], "[CAVIARDER]")
-            .with_ml_threshold(0.5)  // Below model's ~0.72 — keeps match
+            .with_ml_threshold(0.5) // Below model's ~0.72 — keeps match
             .with_filename("file.py");
         let outcome = redactor.redact("x = hello");
         assert_eq!(outcome.text, "x = [CAVIARDER]");
@@ -322,7 +319,7 @@ mod tests {
         let rule = Rule {
             id: "test".into(),
             regex: Regex::new(r"\b[A-Za-z0-9/+=-]{10,}\b").unwrap(),
-            entropy: Some(3.0),  // Only matches with entropy >= 3.0
+            entropy: Some(3.0), // Only matches with entropy >= 3.0
         };
         let redactor = Redactor::new(vec![rule], "[CAVIARDER]")
             .with_ml_threshold(0.5)

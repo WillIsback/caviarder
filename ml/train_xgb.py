@@ -247,6 +247,8 @@ def export_rust(model, feature_names: list[str], output_path: Path):
         f"// Trees: {len(trees_data)}",
         f"// Features: {len(feature_names)}",
         "",
+        "#![allow(clippy::excessive_precision, clippy::approx_constant)]",
+        "",
         "/// Number of features expected by this model.",
         f"pub const N_FEATURES: usize = {len(feature_names)};",
         "",
@@ -299,8 +301,7 @@ def export_rust(model, feature_names: list[str], output_path: Path):
 /// Equivalent to XGBoost's predict_proba for binary classification.
 pub fn predict_xgb(features: &[f32; N_FEATURES]) -> f32 {
     let mut sum = BIAS;
-    for t in 0..N_TREES {
-        let start = TREE_OFFSETS[t] as usize;
+    for &start in TREE_OFFSETS.iter().take(N_TREES) {
         let mut node_idx = start;
         loop {
             let (feat_idx, threshold, left, right, leaf) = NODES[node_idx];

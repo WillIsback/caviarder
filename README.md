@@ -7,7 +7,7 @@
 `caviarder` (French for "to redact") is a fast Rust CLI that reads text from a file or stdin and replaces
 detected secrets (API keys, tokens, passwords) with a placeholder. It uses
 [gitleaks](https://github.com/gitleaks/gitleaks)' community-maintained rule
-set — 220+ patterns — embedded at compile time.
+set — 225+ patterns — embedded at compile time.
 
 ## Why
 
@@ -17,7 +17,7 @@ scrubbing. `caviarder` fills that gap:
 
 - **Pipe anything**: `cat file | cav` — works like `cat` but safe.
 - **Check before commit**: `cav --check file` — exit 1 if secrets found.
-- **Zero config**: 220+ rules baked in. No setup, no server, no dependencies.
+- **Zero config**: 225+ rules baked in. No setup, no server, no dependencies.
 
 ## Installation
 
@@ -104,15 +104,24 @@ cav --rules my-rules.toml config.yml
 
 | Layer | File | Role |
 |-------|------|------|
-| Rules | `config/gitleaks.toml` | 220+ regex patterns from gitleaks (embedded at compile time) |
+| Rules | `config/gitleaks.toml` | 225+ regex patterns from gitleaks (embedded at compile time) |
 | Engine | `lib.rs` | Applies rules in order, optional Shannon entropy filtering, capture-group preservation |
 | CLI | `main.rs` | clap argument parsing, stdin/file I/O, exit codes |
 
-The pipeline is: **text → regex scan → entropy check → replacement**.
+The pipeline is: **text → regex scan → entropy check → ML filter → replacement**.
 
 If a rule has an entropy threshold, only matches whose Shannon entropy meets
 the threshold are redacted — reducing false positives on short or repetitive
 strings.
+
+Optionally, an **ML false-positive post-filter** can be enabled with `--ml-threshold`.
+It uses a trained XGBoost model (32 features including rule type, entropy, character
+composition) to suppress low-confidence matches. Recommended threshold: `0.90`
+(F1=0.690 on CredData benchmark, 64% fewer false positives).
+
+```
+cav --ml-threshold 0.90 config.yml
+```
 
 If a rule defines a capture group `( )`, only the captured portion is redacted
 and the rest of the match is preserved as context:

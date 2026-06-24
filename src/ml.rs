@@ -8,34 +8,49 @@
 /// in `ml/features.py`.
 ///
 /// Model exported from `ml/train_xgb.py` to `ml/model_xgb.rs`.
-
 use crate::ml_model::N_FEATURES;
 
 // Must match PYTHON keyword list in ml/features.py
 const KEYWORDS: &[&str] = &[
-    "password", "passwd", "pwd",
+    "password",
+    "passwd",
+    "pwd",
     "secret",
     "token",
-    "api_key", "apikey", "api",
+    "api_key",
+    "apikey",
+    "api",
     "auth",
-    "credential", "creds",
+    "credential",
+    "creds",
     "login",
-    "db_", "database",
-    "aws", "amazon",
+    "db_",
+    "database",
+    "aws",
+    "amazon",
     "ssh",
     "-----begin",
 ];
 
 // Must match PYTHON sets in ml/features.py
 const SOURCE_EXTS: &[&str] = &[
-    ".py", ".js", ".ts", ".rs", ".go", ".java", ".c", ".cpp",
-    ".h", ".hpp", ".rb", ".php", ".swift", ".kt", ".scala",
-    ".pl", ".pm", ".sh", ".bash", ".zsh", ".ps1", ".r",
+    ".py", ".js", ".ts", ".rs", ".go", ".java", ".c", ".cpp", ".h", ".hpp", ".rb", ".php",
+    ".swift", ".kt", ".scala", ".pl", ".pm", ".sh", ".bash", ".zsh", ".ps1", ".r",
 ];
 
 const CONFIG_EXTS: &[&str] = &[
-    ".env", ".cfg", ".ini", ".conf", ".toml", ".yaml", ".yml",
-    ".json", ".xml", ".properties", ".config", ".cnf",
+    ".env",
+    ".cfg",
+    ".ini",
+    ".conf",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".xml",
+    ".properties",
+    ".config",
+    ".cnf",
 ];
 
 /// Rule type categories — must match RULE_TYPE_CATEGORIES in ml/features.py
@@ -48,14 +63,28 @@ fn rule_type_index(rule_id: &str) -> Option<usize> {
     let rid = rule_id.to_lowercase();
     // Patterns for each category (must match PYTHON RULE_TYPE_CATEGORIES)
     let patterns: &[&[&str]] = &[
-        &["api-key", "api_key", "apikey", "api-token", "api_token"],      // 0: api_key
-        &["token"],                                                         // 1: token
-        &["password", "passwd", "pwd", "secret-key", "secret_key", "secret"], // 2: password
-        &["auth", "authorization", "bearer", "basic", "credential"],        // 3: auth
-        &["private-key", "private_key", "pem", "rsa", "ecdsa", "ed25519"],  // 4: private_key
-        &["url", "uri", "curl", "ftp", "postgres"],                         // 5: url
-        &["uuid", "nonce"],                                                 // 6: uuid
-        &["key", "id", "pat", "sid", "token", "access"],                    // 7: key
+        &["api-key", "api_key", "apikey", "api-token", "api_token"], // 0: api_key
+        &["token"],                                                  // 1: token
+        &[
+            "password",
+            "passwd",
+            "pwd",
+            "secret-key",
+            "secret_key",
+            "secret",
+        ], // 2: password
+        &["auth", "authorization", "bearer", "basic", "credential"], // 3: auth
+        &[
+            "private-key",
+            "private_key",
+            "pem",
+            "rsa",
+            "ecdsa",
+            "ed25519",
+        ], // 4: private_key
+        &["url", "uri", "curl", "ftp", "postgres"],                  // 5: url
+        &["uuid", "nonce"],                                          // 6: uuid
+        &["key", "id", "pat", "sid", "token", "access"],             // 7: key
     ];
 
     for (idx, pats) in patterns.iter().enumerate() {
@@ -73,7 +102,12 @@ fn rule_type_index(rule_id: &str) -> Option<usize> {
 // -----------------------------------------------------------------------
 
 /// Compute the 32-element feature vector for a potential credential.
-pub fn compute_features(value: &str, line: &str, filename: &str, rule_id: &str) -> [f32; N_FEATURES] {
+pub fn compute_features(
+    value: &str,
+    line: &str,
+    filename: &str,
+    rule_id: &str,
+) -> [f32; N_FEATURES] {
     let (is_src, is_cfg) = file_type_flags(filename);
     let mut rule_hot = [0.0f32; RULE_TYPE_COUNT];
     if let Some(idx) = rule_type_index(rule_id) {
@@ -81,46 +115,50 @@ pub fn compute_features(value: &str, line: &str, filename: &str, rule_id: &str) 
     }
 
     [
-        shannon_entropy(value) as f32,           // 0: entropy
-        log_len(value) as f32,                   // 1: log_len
-        digit_ratio(value) as f32,               // 2: digit_ratio
-        upper_ratio(value) as f32,               // 3: upper_ratio
-        lower_ratio(value) as f32,               // 4: lower_ratio
-        special_ratio(value) as f32,             // 5: special_ratio
-        max_consecutive_repeat(value) as f32,    // 6: max_consecutive_repeat
-        has_base64_padding(value) as u8 as f32,  // 7: has_base64_padding
-        has_char(value, b':') as u8 as f32,       // 8: has_colon
-        has_char(value, b'/') as u8 as f32,       // 9: has_slash
-        has_char(value, b'.') as u8 as f32,       // 10: has_dot
-        has_char(value, b'-') as u8 as f32,       // 11: has_hyphen
-        has_char(value, b'_') as u8 as f32,       // 12: has_underscore
-        has_char(value, b'=') as u8 as f32,       // 13: has_equals
-        is_hex_only(value) as u8 as f32,         // 14: is_hex_only
-        log_len(line) as f32,                    // 15: line_log_len
-        keyword_count(line) as f32,              // 16: keyword_count
-        has_char(line, b'=') as u8 as f32,        // 17: is_assignment
-        has_quote(line) as u8 as f32,            // 18: has_quotes
-        is_src as u8 as f32,                     // 19: is_source_file
-        is_cfg as u8 as f32,                     // 20: is_config_file
-        rule_hot[0],                              // 21: rule_type_api_key
-        rule_hot[1],                              // 22: rule_type_token
-        rule_hot[2],                              // 23: rule_type_password
-        rule_hot[3],                              // 24: rule_type_auth
-        rule_hot[4],                              // 25: rule_type_private_key
-        rule_hot[5],                              // 26: rule_type_url
-        rule_hot[6],                              // 27: rule_type_uuid
-        rule_hot[7],                              // 28: rule_type_key
-        0.0,                                      // 29 reserved
-        0.0,                                      // 30 reserved
-        0.0,                                      // 31 reserved
+        shannon_entropy(value) as f32,          // 0: entropy
+        log_len(value) as f32,                  // 1: log_len
+        digit_ratio(value) as f32,              // 2: digit_ratio
+        upper_ratio(value) as f32,              // 3: upper_ratio
+        lower_ratio(value) as f32,              // 4: lower_ratio
+        special_ratio(value) as f32,            // 5: special_ratio
+        max_consecutive_repeat(value) as f32,   // 6: max_consecutive_repeat
+        has_base64_padding(value) as u8 as f32, // 7: has_base64_padding
+        has_char(value, b':') as u8 as f32,     // 8: has_colon
+        has_char(value, b'/') as u8 as f32,     // 9: has_slash
+        has_char(value, b'.') as u8 as f32,     // 10: has_dot
+        has_char(value, b'-') as u8 as f32,     // 11: has_hyphen
+        has_char(value, b'_') as u8 as f32,     // 12: has_underscore
+        has_char(value, b'=') as u8 as f32,     // 13: has_equals
+        is_hex_only(value) as u8 as f32,        // 14: is_hex_only
+        log_len(line) as f32,                   // 15: line_log_len
+        keyword_count(line) as f32,             // 16: keyword_count
+        has_char(line, b'=') as u8 as f32,      // 17: is_assignment
+        has_quote(line) as u8 as f32,           // 18: has_quotes
+        is_src as u8 as f32,                    // 19: is_source_file
+        is_cfg as u8 as f32,                    // 20: is_config_file
+        rule_hot[0],                            // 21: rule_type_api_key
+        rule_hot[1],                            // 22: rule_type_token
+        rule_hot[2],                            // 23: rule_type_password
+        rule_hot[3],                            // 24: rule_type_auth
+        rule_hot[4],                            // 25: rule_type_private_key
+        rule_hot[5],                            // 26: rule_type_url
+        rule_hot[6],                            // 27: rule_type_uuid
+        rule_hot[7],                            // 28: rule_type_key
+        0.0,                                    // 29 reserved
+        0.0,                                    // 30 reserved
+        0.0,                                    // 31 reserved
     ]
 }
 
 fn shannon_entropy(s: &str) -> f64 {
-    if s.is_empty() { return 0.0; }
+    if s.is_empty() {
+        return 0.0;
+    }
     let length = s.len();
     let mut freq: [usize; 256] = [0; 256];
-    for &b in s.as_bytes() { freq[b as usize] += 1; }
+    for &b in s.as_bytes() {
+        freq[b as usize] += 1;
+    }
     let mut entropy = 0.0_f64;
     for &count in freq.iter() {
         if count > 0 {
@@ -132,38 +170,54 @@ fn shannon_entropy(s: &str) -> f64 {
 }
 
 fn log_len(s: &str) -> f64 {
-    if s.is_empty() { 0.0 } else { (s.len() as f64).ln() }
+    if s.is_empty() {
+        0.0
+    } else {
+        (s.len() as f64).ln()
+    }
 }
 
 fn digit_ratio(s: &str) -> f64 {
-    if s.is_empty() { return 0.0; }
+    if s.is_empty() {
+        return 0.0;
+    }
     s.bytes().filter(|c| c.is_ascii_digit()).count() as f64 / s.len() as f64
 }
 
 fn upper_ratio(s: &str) -> f64 {
-    if s.is_empty() { return 0.0; }
+    if s.is_empty() {
+        return 0.0;
+    }
     s.bytes().filter(|c| c.is_ascii_uppercase()).count() as f64 / s.len() as f64
 }
 
 fn lower_ratio(s: &str) -> f64 {
-    if s.is_empty() { return 0.0; }
+    if s.is_empty() {
+        return 0.0;
+    }
     s.bytes().filter(|c| c.is_ascii_lowercase()).count() as f64 / s.len() as f64
 }
 
 fn special_ratio(s: &str) -> f64 {
-    if s.is_empty() { return 0.0; }
+    if s.is_empty() {
+        return 0.0;
+    }
     s.bytes().filter(|c| !c.is_ascii_alphanumeric()).count() as f64 / s.len() as f64
 }
 
 fn max_consecutive_repeat(s: &str) -> usize {
-    if s.is_empty() { return 0; }
+    if s.is_empty() {
+        return 0;
+    }
     let mut max_run = 1;
     let mut current_run = 1;
     let bytes = s.as_bytes();
     for i in 1..bytes.len() {
         if bytes[i] == bytes[i - 1] {
             current_run += 1;
-            if current_run > max_run { max_run = current_run; }
+            if current_run > max_run {
+                max_run = current_run;
+            }
         } else {
             current_run = 1;
         }
@@ -180,7 +234,9 @@ fn has_char(s: &str, ch: u8) -> bool {
 }
 
 fn is_hex_only(s: &str) -> bool {
-    if s.is_empty() { return true; }
+    if s.is_empty() {
+        return true;
+    }
     s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
@@ -194,7 +250,9 @@ fn has_quote(s: &str) -> bool {
 }
 
 fn file_type_flags(filename: &str) -> (bool, bool) {
-    if filename.is_empty() { return (false, false); }
+    if filename.is_empty() {
+        return (false, false);
+    }
     let name = extract_filename(filename);
     let dot = name.rfind('.');
     let ext = dot.map(|i| &name[i..]).unwrap_or("");
@@ -214,10 +272,9 @@ fn file_type_flags(filename: &str) -> (bool, bool) {
 /// uses global indexing but the exported `left`/`right` values are
 /// tree-local (relative to each tree's start offset).
 pub fn predict_proba(features: &[f32; N_FEATURES]) -> f64 {
-    use crate::ml_model::{BIAS, N_TREES, NODES, TREE_OFFSETS};
+    use crate::ml_model::{BIAS, NODES, N_TREES, TREE_OFFSETS};
     let mut sum = BIAS as f64;
-    for t in 0..N_TREES {
-        let base = TREE_OFFSETS[t] as usize;
+    for &base in TREE_OFFSETS.iter().take(N_TREES) {
         let mut local_idx = 0usize; // start at root (local index 0)
         loop {
             let (feat_idx, threshold, left, right, leaf) = NODES[base + local_idx];
@@ -248,7 +305,9 @@ pub fn predict(features: &[f32; N_FEATURES], threshold: f64) -> bool {
 /// Extract the line containing byte position `pos` from `text`.
 pub fn extract_line(text: &str, pos: usize) -> &str {
     let bytes = text.as_bytes();
-    if pos >= bytes.len() { return text; }
+    if pos >= bytes.len() {
+        return text;
+    }
 
     let line_start = match bytes[..=pos].iter().rposition(|&b| b == b'\n') {
         Some(nl) => nl + 1,
@@ -271,10 +330,15 @@ pub fn extract_line(text: &str, pos: usize) -> &str {
 
 /// Extract the filename from a path (last component).
 pub fn extract_filename(path: &str) -> &str {
-    if path.is_empty() { return path; }
+    if path.is_empty() {
+        return path;
+    }
     let after_slash = path.rfind('/').map(|i| &path[i + 1..]).unwrap_or(path);
-    let after_bslash = after_slash.rfind('\\').map(|i| &after_slash[i + 1..]).unwrap_or(after_slash);
-    after_bslash
+
+    (after_slash
+        .rfind('\\')
+        .map(|i| &after_slash[i + 1..])
+        .unwrap_or(after_slash)) as _
 }
 
 // -----------------------------------------------------------------------
@@ -396,7 +460,10 @@ mod tests {
         // All zeros should be confident non-secret (model trained on
         // non-"other" entries gives ~0.61 for empty value).
         let prob = predict_proba(&features);
-        assert!(prob < 0.9, "all-zero features should be below 0.9, got {prob}");
+        assert!(
+            prob < 0.9,
+            "all-zero features should be below 0.9, got {prob}"
+        );
     }
 
     #[test]
