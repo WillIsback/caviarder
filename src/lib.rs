@@ -60,63 +60,86 @@ impl Redactor {
         for rule in &self.rules {
             let mut count = 0usize;
 
-            // Collect all matches first (for both entropy and ML checks).
-            // This avoids position-shifting issues during replacement.
-            struct MatchEntry {
-                start: usize,
-                end: usize,
-                capture_start: Option<usize>,
-                capture_end: Option<usize>,
-            }
-            let mut matches: Vec<MatchEntry> = Vec::new();
+            let needs_filter = rule.entropy.is_some() || self.ml_threshold > 0.0;
 
-            for caps in rule.regex.captures_iter(&text) {
-                let full = caps.get(0).unwrap();
-                let (check_str, value_str, capture_start, capture_end) = match caps.get(1) {
-                    Some(v) => (v.as_str(), v.as_str(), Some(v.start()), Some(v.end())),
-                    None => (full.as_str(), full.as_str(), None, None),
-                };
+            if needs_filter {
+                // Slow path: collect matches, apply entropy/ML filters, then
+                // replace in reverse order to preserve positions.
+                struct MatchEntry {
+                    start: usize,
+                    end: usize,
+                    capture_start: Option<usize>,
+                    capture_end: Option<usize>,
+                }
+                let mut matches: Vec<MatchEntry> = Vec::new();
 
-                // Entropy check
-                if let Some(min_entropy) = rule.entropy {
-                    if shannon_entropy(check_str) < min_entropy {
-                        continue;
+                for caps in rule.regex.captures_iter(&text) {
+                    let full = caps.get(0).unwrap();
+                    let (check_str, value_str, capture_start, capture_end) = match caps.get(1) {
+                        Some(v) => (v.as_str(), v.as_str(), Some(v.start()), Some(v.end())),
+                        None => (full.as_str(), full.as_str(), None, None),
+                    };
+
+                    // Entropy check
+                    if let Some(min_entropy) = rule.entropy {
+                        if shannon_entropy(check_str) < min_entropy {
+                            continue;
+                        }
                     }
+
+                    // ML threshold check
+                    if self.ml_threshold > 0.0 {
+                        let line = crate::ml::extract_line(&text, full.start());
+                        let features =
+                            crate::ml::compute_features(value_str, line, &self.filename);
+                        if !crate::ml::predict(&features, self.ml_threshold) {
+                            continue;
+                        }
+                    }
+
+                    matches.push(MatchEntry {
+                        start: full.start(),
+                        end: full.end(),
+                        capture_start,
+                        capture_end,
+                    });
                 }
 
-                // ML threshold check
-                if self.ml_threshold > 0.0 {
-                    let line = crate::ml::extract_line(&text, full.start());
-                    let features = crate::ml::compute_features(value_str, line, &self.filename);
-                    if !crate::ml::predict(&features, self.ml_threshold) {
-                        continue;
-                    }
+                // Replace in reverse order to preserve positions
+                for entry in matches.into_iter().rev() {
+                    let (rs, re) = match (entry.capture_start, entry.capture_end) {
+                        (Some(s), Some(e)) => (s, e),
+                        _ => (entry.start, entry.end),
+                    };
+                    // Preserve context around the captured value
+                    let before = &text[entry.start..rs].to_string();
+                    let after = &text[re..entry.end].to_string();
+                    let replacement = if before.is_empty() && after.is_empty() {
+                        self.placeholder.clone()
+                    } else {
+                        format!("{}{}{}", before, self.placeholder, after)
+                    };
+                    text.replace_range(entry.start..entry.end, &replacement);
+                    count += 1;
                 }
-
-                matches.push(MatchEntry {
-                    start: full.start(),
-                    end: full.end(),
-                    capture_start,
-                    capture_end,
+            } else {
+                // Fast path: no entropy or ML filter — use highly optimized
+                // regex::Regex::replace_all in a single pass.
+                let replaced = rule.regex.replace_all(&text, |caps: &regex::Captures| {
+                    count += 1;
+                    if caps.len() >= 2 {
+                        let full_match = caps.get(0).unwrap();
+                        let value = caps.get(1).unwrap();
+                        let before =
+                            &full_match.as_str()[..value.start() - full_match.start()];
+                        let after =
+                            &full_match.as_str()[value.end() - full_match.start()..];
+                        format!("{}{}{}", before, self.placeholder, after)
+                    } else {
+                        self.placeholder.clone()
+                    }
                 });
-            }
-
-            // Replace in reverse order to preserve positions
-            for entry in matches.into_iter().rev() {
-                let (rs, re) = match (entry.capture_start, entry.capture_end) {
-                    (Some(s), Some(e)) => (s, e),
-                    _ => (entry.start, entry.end),
-                };
-                // Preserve context around the captured value
-                let before = &text[entry.start..rs].to_string();
-                let after = &text[re..entry.end].to_string();
-                let replacement = if before.is_empty() && after.is_empty() {
-                    self.placeholder.clone()
-                } else {
-                    format!("{}{}{}", before, self.placeholder, after)
-                };
-                text.replace_range(entry.start..entry.end, &replacement);
-                count += 1;
+                text = replaced.into_owned();
             }
 
             if count > 0 {
