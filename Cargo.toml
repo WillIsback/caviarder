@@ -30,6 +30,10 @@ path = "confusion/main.rs"
 name = "throughput"
 harness = false
 
+[[bench]]
+name = "per_rule"
+harness = false
+
 [profile.release]
 strip = true
 lto = true
