@@ -23,7 +23,7 @@ Arguments:
 
 Options:
   -o, --output <FILE>       Write redacted text here (default: stdout)
-  -p, --placeholder <TEXT>  Replacement string (default: "[REDACTED]")
+  -p, --placeholder <TEXT>  Replacement string (default: "[CAVIARDER]")
   -c, --check               Scan only: exit 1 if secrets found, no output
   -r, --rules <FILE>        Path to custom gitleaks.toml (default: embedded)
   -s, --stats               Print per-rule redaction counts to stderr

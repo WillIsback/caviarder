@@ -119,7 +119,7 @@ and the rest of the match is preserved as context:
 
 ```
 --api-key "sk-abc123DEF456ghi789jkl012mnopqrXYZ"
-→ --api-key "[REDACTED]"
+→ --api-key "[CAVIARDER]"
 ```
 
 ## How it differs from gitleaks

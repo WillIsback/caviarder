@@ -155,9 +155,9 @@ mod tests {
             regex: Regex::new(r"sk-[A-Za-z0-9]{20,}").unwrap(),
             entropy: None,
         };
-        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let redactor = Redactor::new(vec![rule], "[CAVIARDER]");
         let outcome = redactor.redact("my key is sk-abc123DEF456ghi789jkl012");
-        assert_eq!(outcome.text, "my key is [REDACTED]");
+        assert_eq!(outcome.text, "my key is [CAVIARDER]");
         assert_eq!(outcome.total(), 1);
     }
 
@@ -168,9 +168,9 @@ mod tests {
             regex: Regex::new(r"AKIA[A-Z0-9]{16}").unwrap(),
             entropy: None,
         };
-        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let redactor = Redactor::new(vec![rule], "[CAVIARDER]");
         let outcome = redactor.redact("keys: AKIAIOSFODNN7EXAMPLE and AKIAZZZZZZZZZZZZZZZZ");
-        assert_eq!(outcome.text, "keys: [REDACTED] and [REDACTED]");
+        assert_eq!(outcome.text, "keys: [CAVIARDER] and [CAVIARDER]");
         assert_eq!(outcome.total(), 2);
     }
 
@@ -186,9 +186,9 @@ mod tests {
             regex: Regex::new(r"(?i)password=\S+").unwrap(),
             entropy: None,
         };
-        let redactor = Redactor::new(vec![rule1, rule2], "[REDACTED]");
+        let redactor = Redactor::new(vec![rule1, rule2], "[CAVIARDER]");
         let outcome = redactor.redact("aws=AKIAIOSFODNN7EXAMPLE password=hunter2");
-        assert_eq!(outcome.text, "aws=[REDACTED] [REDACTED]");
+        assert_eq!(outcome.text, "aws=[CAVIARDER] [CAVIARDER]");
         assert_eq!(outcome.total(), 2);
     }
 
@@ -199,11 +199,11 @@ mod tests {
             regex: Regex::new(r"\b[A-Za-z0-9/+=-]{10,}\b").unwrap(),
             entropy: Some(4.0),
         };
-        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let redactor = Redactor::new(vec![rule], "[CAVIARDER]");
         let outcome = redactor.redact("low entropy AAAAAAAA high entropy sk-proj-abc123DEF456");
         // "AAAAAAAA" is 8 identical chars: entropy 0.0 < 4.0 → not redacted
         // "sk-proj-abc123DEF456" has mixed chars: entropy >= 4.0 → redacted
-        assert_eq!(outcome.text, "low entropy AAAAAAAA high entropy [REDACTED]");
+        assert_eq!(outcome.text, "low entropy AAAAAAAA high entropy [CAVIARDER]");
         assert_eq!(outcome.total(), 1);
     }
 
@@ -214,7 +214,7 @@ mod tests {
             regex: Regex::new(r"[A-Z]+").unwrap(),
             entropy: None,
         };
-        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let redactor = Redactor::new(vec![rule], "[CAVIARDER]");
         let outcome = redactor.redact("");
         assert_eq!(outcome.text, "");
         assert_eq!(outcome.total(), 0);
@@ -227,7 +227,7 @@ mod tests {
             regex: Regex::new(r"SECRET_\d+").unwrap(),
             entropy: None,
         };
-        let redactor = Redactor::new(vec![rule], "[REDACTED]");
+        let redactor = Redactor::new(vec![rule], "[CAVIARDER]");
         let outcome = redactor.redact("just regular text here");
         assert_eq!(outcome.text, "just regular text here");
         assert_eq!(outcome.total(), 0);
